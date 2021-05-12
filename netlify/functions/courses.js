@@ -44,9 +44,12 @@ exports.handler = async function(event) {
   let db = firebase.firestore()
 
   // ask Firebase for the course that corresponds to the course number, wait for the response
-  let courseQuery = await db.collection('courses').where(`courseNumber`, `==`, courseNumber).get()
+  //let courseQuery = await db.collection(`courses`).get()
+  let courseQuery = await db.collection(`courses`).where(`courseNumber`, `==`, courseNumber).get()
+
 
   // get the first document from the query
+ 
   let course = courseQuery.docs[0]
 
   // get the id from the document
@@ -59,7 +62,7 @@ exports.handler = async function(event) {
   courseData.sections = []
 
   // ask Firebase for the sections corresponding to the Document ID of the course, wait for the response
-  let sectionsQuery = await db.collection('sections').where(`courseId`, `==`, courseId).get()
+  let sectionsQuery = await db.collection(`sections`).where(`courseId`, `==`, courseId).get()
 
   // get the documents from the query
   let sections = sectionsQuery.docs
@@ -73,18 +76,73 @@ exports.handler = async function(event) {
     let sectionData = sections[i].data()
 
     // ask Firebase for the lecturer with the ID provided by the section; hint: read "Retrieve One Document (when you know the Document ID)" in the reference
-    let lecturerQuery = await db.collection('lecturers').doc(sectionData.lecturerId).get()
+    let professorQuery = await db.collection(`professors`).doc(sectionData.professorId).get()
 
     // get the data from the returned document
-    let lecturer = lecturerQuery.data()
+    let professor = professorQuery.data()
 
     // add the lecturer's name to the section's data
-    sectionData.lecturerName = lecturer.name
+    sectionData.professorName = professor.professorLastName
 
-    // add the section data to the courseData
-    courseData.sections.push(sectionData)
 
     // 🔥 your code for the reviews/ratings goes here
+  
+     // ask Firebase for the reviews ID provided by the section
+     let reviewQuery = await db.collection(`reviews`).where(`sectionId`, `==`, sectionId).get()
+
+  // get the data from the returned document
+    let reviews = reviewQuery.docs
+
+  // define empty variables for count reviews and sum of ratings
+    let countSectionReviews = 0
+    let sumSectionRating = 0
+
+  for(let reviewIndex=0; reviewIndex < reviews.length; reviewIndex++) {
+    // get the id from the review document
+    let reviewId = reviews[reviewIndex].id
+    // get the data from the reviewdocument
+    let reviewData = reviews[reviewIndex].data()
+    //create a review object to store the data 
+    let reviewObject = {
+      id: reviewId,
+      reviewRating: reviewData.reviewRating,
+      reviewComments: reviewData.reviewComments
+
+    }
+    // increment the review count
+    countSectionReviews = countSectionReviews + 1
+
+    // incremenet cumulative sum for ratings
+    sumSectionRating = sumSectionRating + reviewObject.reviewRating
+   
+    // add the review rating to the section's data
+    sectionData.reviewRating = reviewObject.reviewRating
+    // add the review comments to the section's data
+    sectionData.reviewComments = reviewObject.reviewComments
+    sectionData.reviewId = reviewObject.id
+    sectionData.sectionReviewCount = reviews.length
+    }
+   // calculate # of reviews and average rating and add it to sectionData
+    sectionData.countSectionReviews = countSectionReviews
+    sectionData.averageRating = sumSectionRating / countSectionReviews
+  
+     // add the section data to the courseData
+     courseData.sections.push(sectionData)
+     
+  // define empty variables for # of reviews and cumulative rating for course
+  let numberCourseReviews = 0
+  let sumCourseRating = 0
+
+    // increment number of course ratings
+    numberCourseReviews = numberCourseReviews + countSectionReviews
+
+    // increment cumulative sum for ratings
+    sumCourseRating = sumCourseRating + sumSectionRating
+
+    // calculate # of course reviews and average rating and add it to courseData
+    courseData.countReviews = numberCourseReviews
+    courseData.avgRating = sumCourseRating / numberCourseReviews 
+
   }
 
   // return the standard response
@@ -92,4 +150,5 @@ exports.handler = async function(event) {
     statusCode: 200,
     body: JSON.stringify(courseData)
   }
+
 }
